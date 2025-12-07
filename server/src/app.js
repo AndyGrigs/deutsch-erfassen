@@ -1,20 +1,13 @@
 const app = require('./server');
-const mongoose = require('mongoose');
+const { supabase } = require('./config/db');
 require('dotenv').config();
 
 const PORT = process.env.PORT || 3000;
-const DB_URI = process.env.DB_URI || 'mongodb://localhost:27017/deutsch_erfassen';
 
-mongoose
-  .connect(DB_URI)
-  .then(() => {
-    console.log('Database connection successful');
-    
-    app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-    });
-  })
-  .catch(error => {
-    console.error('Database connection error:', error.message);
-    process.exit(1);
-  });
+// Test the Supabase connection
+// In a real application, you might want to perform a simple query to verify the connection
+console.log('Supabase client initialized');
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});

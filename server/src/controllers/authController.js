@@ -7,10 +7,10 @@ const { sendEmail } = require('../helpers/sendEmail');
 
 const register = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, name } = req.body;
 
-    const user = await User.findOne({ email });
-    if (user) {
+    const existingUser = await User.findByEmail(email);
+    if (existingUser) {
       throw HttpError(409, 'Email in use');
     }
 
@@ -19,15 +19,16 @@ const register = async (req, res, next) => {
     const newUser = await User.create({
       email,
       password: hashPassword,
+      name: name || email.split('@')[0], // Use email prefix as name if not provided
     });
 
     const token = signToken(
-      { id: newUser._id },
+      { id: newUser.id },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
 
-    await User.findByIdAndUpdate(newUser._id, { token });
+    await User.updateToken(newUser.id, token);
 
     res.status(201).json({
       status: 'success',
@@ -35,8 +36,9 @@ const register = async (req, res, next) => {
       data: {
         token,
         user: {
-          id: newUser._id,
+          id: newUser.id,
           email: newUser.email,
+          name: newUser.name,
         },
       },
     });
@@ -49,7 +51,7 @@ const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    const user = await User.findOne({ email });
+    const user = await User.findByEmail(email);
     if (!user) {
       throw HttpError(401, 'Email or password is wrong');
     }
@@ -60,12 +62,12 @@ const login = async (req, res, next) => {
     }
 
     const token = signToken(
-      { id: user._id },
+      { id: user.id },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
 
-    await User.findByIdAndUpdate(user._id, { token });
+    await User.updateToken(user.id, token);
 
     res.json({
       status: 'success',
@@ -73,8 +75,9 @@ const login = async (req, res, next) => {
       data: {
         token,
         user: {
-          id: user._id,
+          id: user.id,
           email: user.email,
+          name: user.name,
         },
       },
     });
@@ -85,9 +88,9 @@ const login = async (req, res, next) => {
 
 const logout = async (req, res, next) => {
   try {
-    const { _id } = req.user;
+    const { id } = req.user;
 
-    await User.findByIdAndUpdate(_id, { token: null });
+    await User.deleteToken(id);
 
     res.status(204).json({
       status: 'success',

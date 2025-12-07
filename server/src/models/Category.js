@@ -1,20 +1,96 @@
-const { Schema, model } = require('mongoose');
+const { supabase } = require('../config/db');
 
-const categorySchema = new Schema(
-  {
-    name: {
-      type: String,
-      required: [true, 'Name is required'],
-      unique: true,
-    },
-    image: {
-      type: String,
-      required: [true, 'Image is required'],
-    },
+// Category model functions for Supabase
+const Category = {
+  // Create a new category
+  async create(categoryData) {
+    const { data, error } = await supabase
+      .from('categories')
+      .insert([categoryData])
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return data;
   },
-  { versionKey: false, timestamps: true }
-);
 
-const Category = model('category', categorySchema);
+  // Find all categories
+  async findAll() {
+    const { data, error } = await supabase
+      .from('categories')
+      .select('*');
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return data;
+  },
+
+  // Find category by ID
+  async findById(id) {
+    const { data, error } = await supabase
+      .from('categories')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null; // Record not found
+      throw new Error(error.message);
+    }
+
+    return data;
+  },
+
+  // Find category by name
+  async findByName(name) {
+    const { data, error } = await supabase
+      .from('categories')
+      .select('*')
+      .ilike('name', name)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null; // Record not found
+      throw new Error(error.message);
+    }
+
+    return data;
+  },
+
+  // Update category by ID
+  async updateById(id, updateData) {
+    const { data, error } = await supabase
+      .from('categories')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return data;
+  },
+
+  // Delete category by ID
+  async deleteById(id) {
+    const { error } = await supabase
+      .from('categories')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return { message: 'Category deleted successfully' };
+  }
+};
 
 module.exports = { Category };
