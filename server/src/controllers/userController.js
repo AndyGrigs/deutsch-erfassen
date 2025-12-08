@@ -104,16 +104,13 @@ const getFollowers = async (req, res, next) => {
   try {
     const { id: currentUserId } = req.user;
 
-    // The follow relationships are stored in a separate table
-    // We need to query the user_follows table to get followers
-    // This would require updating the User model to handle follow relationships
+    const followers = await User.getFollowers(currentUserId);
 
-    // For now, returning an empty array - need to implement follow functionality in User model
     res.json({
       status: 'success',
       code: 200,
       data: {
-        followers: [],
+        followers,
       },
     });
   } catch (error) {
@@ -125,16 +122,13 @@ const getFollowing = async (req, res, next) => {
   try {
     const { id: currentUserId } = req.user;
 
-    // The follow relationships are stored in a separate table
-    // We need to query the user_follows table to get following users
-    // This would require updating the User model to handle follow relationships
+    const following = await User.getFollowing(currentUserId);
 
-    // For now, returning an empty array - need to implement follow functionality in User model
     res.json({
       status: 'success',
       code: 200,
       data: {
-        following: [],
+        following,
       },
     });
   } catch (error) {
@@ -151,13 +145,13 @@ const followUser = async (req, res, next) => {
       throw HttpError(400, 'You cannot follow yourself');
     }
 
-    // For a complete implementation, we would need to add follow/unfollow methods to the User model
-    // This would involve inserting records into the user_follows table
-    // and updating followers/following counts
+    // Check if user exists
+    const userToFollow = await User.findById(userId);
+    if (!userToFollow) {
+      throw HttpError(404, 'User not found');
+    }
 
-    // Placeholder implementation
-    await User.updateFollowingCount(id, 1); // Increment following count
-    await User.updateFollowersCount(userId, 1); // Increment followers count
+    await User.followUser(id, userId);
 
     res.json({
       status: 'success',
@@ -174,13 +168,7 @@ const unfollowUser = async (req, res, next) => {
     const { userId } = req.params;
     const { id } = req.user;
 
-    // For a complete implementation, we would need to add follow/unfollow methods to the User model
-    // This would involve removing records from the user_follows table
-    // and updating followers/following counts
-
-    // Placeholder implementation
-    await User.updateFollowingCount(id, -1); // Decrement following count
-    await User.updateFollowersCount(userId, -1); // Decrement followers count
+    await User.unfollowUser(id, userId);
 
     res.json({
       status: 'success',

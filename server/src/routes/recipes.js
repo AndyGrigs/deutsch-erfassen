@@ -46,14 +46,16 @@ const upload = multer({ storage, fileFilter });
 // Public routes
 router.get('/', getRecipes);
 router.get('/popular', getPopularRecipes);
-router.get('/:recipeId', getRecipeById);
 
-// Private routes
-router.post('/', authenticate, upload.fields([{ name: 'image', maxCount: 1 }, { name: 'thumb', maxCount: 1 }]), createRecipe);
-router.delete('/:recipeId', authenticate, deleteRecipe);
+// Private routes - static routes must be before dynamic /:recipeId
 router.get('/own', authenticate, getOwnRecipes);
+router.get('/favorites', authenticate, getFavoriteRecipes);
+router.post('/', authenticate, upload.fields([{ name: 'image', maxCount: 1 }, { name: 'thumb', maxCount: 1 }]), createRecipe);
 router.post('/favorites/:recipeId', authenticate, addToFavorites);
 router.delete('/favorites/:recipeId', authenticate, removeFromFavorites);
-router.get('/favorites', authenticate, getFavoriteRecipes);
+router.delete('/:recipeId', authenticate, deleteRecipe);
+
+// Dynamic route - must be last
+router.get('/:recipeId', getRecipeById);
 
 module.exports = router;

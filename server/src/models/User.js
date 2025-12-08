@@ -156,9 +156,106 @@ const User = {
   async updateFollowingCount(userId, increment = 1) {
     const user = await this.findById(userId);
     if (!user) return null;
-    
+
     const newCount = Math.max(0, user.following_count + increment);
     return await this.updateById(userId, { following_count: newCount });
+  },
+
+  // Follow a user
+  async followUser(followerId, followingId) {
+    // Check if already following
+    const { data: existing } = await supabase
+      .from('user_follows')
+      .select('id')
+      .match({ follower_id: followerId, following_id: followingId })
+      .single();
+
+    if (existing) {
+      throw new Error('Already following this user');
+    }
+
+    // Insert follow relationship
+    const { error } = await supabase
+      .from('user_follows')
+      .insert([{ follower_id: followerId, following_id: followingId }]);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    // Update counts
+    await this.updateFollowingCount(followerId, 1);
+    await this.updateFollowersCount(followingId, 1);
+
+    return { message: 'Successfully followed user' };
+  },
+
+  // Unfollow a user
+  async unfollowUser(followerId, followingId) {
+    const { error } = await supabase
+      .from('user_follows')
+      .delete()
+      .match({ follower_id: followerId, following_id: followingId });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    // Update counts
+    await this.updateFollowingCount(followerId, -1);
+    await this.updateFollowersCount(followingId, -1);
+
+    return { message: 'Successfully unfollowed user' };
+  },
+
+  // Get followers (users who follow this user)
+  async getFollowers(userId) {
+    const { data, error } = await supabase
+      .from('user_follows')
+      .select(`
+        follower_id,
+        users:follower_id (
+          id,
+          name,
+          email,
+          avatar_url,
+          recipes_count,
+          followers_count
+        )
+      `)
+      .eq('following_id', userId);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    // Format the response
+    return data.map(item => item.users);
+  },
+
+  // Get following (users that this user follows)
+  async getFollowing(userId) {
+    const { data, error } = await supabase
+      .from('user_follows')
+      .select(`
+        following_id,
+        users:following_id (
+          id,
+          name,
+          email,
+          avatar_url,
+          recipes_count,
+          followers_count
+        )
+      `)
+      .eq('follower_id', userId);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    // Format the response
+    return data.map(item => item.users);
   }
 };
 

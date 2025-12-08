@@ -7,8 +7,14 @@ const getRecipes = async (req, res, next) => {
   try {
     const { category, ingredient, area, page = 1, limit = 12 } = req.query;
 
-    // Call the updated method in the Recipe model
-    const result = await Recipe.findAll({ page: parseInt(page), limit: parseInt(limit), category, area });
+    // Call the updated method in the Recipe model with all filters
+    const result = await Recipe.findAll({
+      page: parseInt(page),
+      limit: parseInt(limit),
+      category,
+      area,
+      ingredient
+    });
 
     res.json({
       status: 'success',
@@ -51,18 +57,7 @@ const getPopularRecipes = async (req, res, next) => {
   try {
     const { limit = 10 } = req.query;
 
-    // Since we can't directly sort by popularity in the current findAll method,
-    // we'll call findAll and then sort the results, or implement a new method
-    // For now, let's implement a new method for popular recipes in the model
-
-    // For the current implementation, we'll get all recipes and sort by popularity
-    // But in production, you'd want to implement this properly in the model
-    const result = await Recipe.findAll({ page: 1, limit: parseInt(limit) });
-
-    // Sort by popularity in descending order and limit results
-    const popularRecipes = result.data
-      .sort((a, b) => b.popularity - a.popularity)
-      .slice(0, parseInt(limit));
+    const popularRecipes = await Recipe.getPopularRecipes(parseInt(limit));
 
     res.json({
       status: 'success',
@@ -236,16 +231,21 @@ const removeFromFavorites = async (req, res, next) => {
 const getFavoriteRecipes = async (req, res, next) => {
   try {
     const { id: userId } = req.user;
+    const { page = 1, limit = 12 } = req.query;
 
-    // For a complete implementation, we'd need to add a method to get favorite recipes
-    // For now, we'll return an empty array
-    // In a proper implementation, this would query the recipe_favorites table
+    const result = await Recipe.getFavoriteRecipes(userId, {
+      page: parseInt(page),
+      limit: parseInt(limit)
+    });
 
     res.json({
       status: 'success',
       code: 200,
       data: {
-        recipes: [],
+        recipes: result.data,
+        total: result.total,
+        page: result.page,
+        totalPages: Math.ceil(result.total / result.limit),
       },
     });
   } catch (error) {

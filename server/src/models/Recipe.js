@@ -79,7 +79,64 @@ const Recipe = {
   },
 
   // Find all recipes with pagination
-  async findAll({ page = 1, limit = 10, category = null, area = null } = {}) {
+  async findAll({ page = 1, limit = 10, category = null, area = null, ingredient = null } = {}) {
+    // If filtering by ingredient, we need a different approach using joins
+    if (ingredient) {
+      const { data, error, count } = await supabase
+        .from('recipe_ingredients')
+        .select(`
+          recipe_id,
+          recipes (
+            *,
+            user:users(email, name),
+            recipe_ingredients (
+              ingredients (*)
+            )
+          )
+        `, { count: 'exact' })
+        .ilike('ingredients.title', `%${ingredient}%`)
+        .range((page - 1) * limit, page * limit - 1);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      // Extract unique recipes and format them
+      const uniqueRecipes = [];
+      const recipeIds = new Set();
+
+      data.forEach(item => {
+        const recipe = item.recipes;
+        if (!recipeIds.has(recipe.id)) {
+          recipeIds.add(recipe.id);
+
+          // Apply category and area filters if provided
+          if (category && !recipe.category.toLowerCase().includes(category.toLowerCase())) {
+            return;
+          }
+          if (area && !recipe.area.toLowerCase().includes(area.toLowerCase())) {
+            return;
+          }
+
+          // Format ingredients
+          if (recipe.recipe_ingredients && recipe.recipe_ingredients.length > 0) {
+            recipe.ingredients = recipe.recipe_ingredients.map(ri => ({
+              id: ri.ingredients.id,
+              title: ri.ingredients.title,
+              measure: ri.measure
+            }));
+          } else {
+            recipe.ingredients = [];
+          }
+          delete recipe.recipe_ingredients;
+          uniqueRecipes.push(recipe);
+        }
+      });
+
+      return { data: uniqueRecipes, total: uniqueRecipes.length, page, limit };
+    }
+
+    // Standard query without ingredient filter
     let query = supabase
       .from('recipes')
       .select(`
@@ -208,12 +265,17 @@ const Recipe = {
       throw new Error(error.message);
     }
 
-    // Update favorites count for the recipe owner
-    const recipe = await this.findById(recipeId);
-    if (recipe) {
-      const user = require('./User').User;
-      await user.updateFavoritesCount(recipe.owner_id, 1);
+    // If it was already a favorite (duplicate key), don't update counts
+    if (error && error.code === '23505') {
+      return { message: 'Recipe already in favorites' };
     }
+
+    // Update recipe popularity (number of users who favorited it)
+    await this.updatePopularity(recipeId, 1);
+
+    // Update favorites count for the user who is favoriting
+    const user = require('./User').User;
+    await user.updateFavoritesCount(userId, 1);
 
     return { message: 'Recipe added to favorites' };
   },
@@ -229,12 +291,12 @@ const Recipe = {
       throw new Error(error.message);
     }
 
-    // Update favorites count for the recipe owner
-    const recipe = await this.findById(recipeId);
-    if (recipe) {
-      const user = require('./User').User;
-      await user.updateFavoritesCount(recipe.owner_id, -1);
-    }
+    // Update recipe popularity (number of users who favorited it)
+    await this.updatePopularity(recipeId, -1);
+
+    // Update favorites count for the user who is unfavoriting
+    const user = require('./User').User;
+    await user.updateFavoritesCount(userId, -1);
 
     return { message: 'Recipe removed from favorites' };
   },
@@ -252,6 +314,84 @@ const Recipe = {
     }
 
     return !!data;
+  },
+
+  // Get user's favorite recipes
+  async getFavoriteRecipes(userId, { page = 1, limit = 10 } = {}) {
+    const { data, error, count } = await supabase
+      .from('recipe_favorites')
+      .select(`
+        recipe_id,
+        recipes (
+          *,
+          user:users(email, name),
+          recipe_ingredients (
+            ingredients (*)
+          )
+        )
+      `, { count: 'exact' })
+      .eq('user_id', userId)
+      .range((page - 1) * limit, page * limit - 1);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    // Format the response - extract recipes and format ingredients
+    const formattedData = data.map(item => {
+      const recipe = item.recipes;
+      if (recipe.recipe_ingredients && recipe.recipe_ingredients.length > 0) {
+        recipe.ingredients = recipe.recipe_ingredients.map(ri => ({
+          id: ri.ingredients.id,
+          title: ri.ingredients.title,
+          measure: ri.measure
+        }));
+      } else {
+        recipe.ingredients = [];
+      }
+      delete recipe.recipe_ingredients;
+      return recipe;
+    });
+
+    return { data: formattedData, total: count, page, limit };
+  },
+
+  // Get popular recipes sorted by number of favorites
+  async getPopularRecipes(limit = 10) {
+    // Get recipes with their favorite counts using a subquery approach
+    // We'll count favorites for each recipe and sort by that count
+    const { data, error } = await supabase
+      .from('recipes')
+      .select(`
+        *,
+        user:users(email, name),
+        recipe_ingredients (
+          ingredients (*)
+        )
+      `)
+      .order('popularity', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    // Format ingredients for each recipe
+    const formattedData = data.map(recipe => {
+      if (recipe.recipe_ingredients && recipe.recipe_ingredients.length > 0) {
+        recipe.ingredients = recipe.recipe_ingredients.map(ri => ({
+          id: ri.ingredients.id,
+          title: ri.ingredients.title,
+          measure: ri.measure
+        }));
+      } else {
+        recipe.ingredients = [];
+      }
+      delete recipe.recipe_ingredients;
+      return recipe;
+    });
+
+    return formattedData;
   }
 };
 

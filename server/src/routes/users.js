@@ -39,22 +39,22 @@ const upload = multer({ storage, fileFilter });
 // Get current user info
 router.get('/current', authenticate, getCurrent);
 
-// Get other user info
-router.get('/:userId', authenticate, getOtherUser);
+// Get followers (must be before /:userId)
+router.get('/followers', authenticate, getFollowers);
+
+// Get following (must be before /:userId)
+router.get('/following', authenticate, getFollowing);
 
 // Update avatar
 router.patch('/avatars', authenticate, upload.single('avatar'), updateAvatar);
-
-// Get followers
-router.get('/followers', authenticate, getFollowers);
-
-// Get following
-router.get('/following', authenticate, getFollowing);
 
 // Follow user
 router.post('/follow/:userId', authenticate, followUser);
 
 // Unfollow user
 router.delete('/follow/:userId', authenticate, unfollowUser);
+
+// Get other user info (must be after static routes)
+router.get('/:userId', authenticate, getOtherUser);
 
 module.exports = router;
